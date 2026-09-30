@@ -1,21 +1,3 @@
-const DEFAULT_LABELS = [
-  'warm',
-  'cold',
-  'fast',
-  'slow',
-  'easy',
-  'difficult',
-  'vegetarian',
-  'family',
-  'cheap',
-  'high-protein',
-  'comfort',
-  'light',
-  'breakfast',
-  'lunch',
-  'dinner'
-];
-
 const DAY_NAMES = [
   'Monday',
   'Tuesday',
@@ -27,21 +9,29 @@ const DAY_NAMES = [
 ];
 
 const LABEL_ALIASES = {
-  warm: ['warm', 'heiss', 'hot'],
+  warm: ['warm', 'heiss', 'heiß', 'hot'],
   cold: ['cold', 'kalt'],
-  fast: ['fast', 'quick', 'schnell'],
-  slow: ['slow', 'langsam'],
-  easy: ['easy', 'leicht', 'simple'],
-  difficult: ['difficult', 'hard', 'schwierig', 'challenging'],
+  fast: ['fast', 'quick', 'schnell', 'kurz'],
+  slow: ['slow', 'langsam', 'lang'],
+  easy: ['easy', 'leicht', 'simple', 'null', 'normal', 'mittel'],
+  difficult: ['difficult', 'hard', 'schwierig', 'challenging', 'tief', 'hoch'],
   vegetarian: ['vegetarian', 'vegetarisch'],
   family: ['family', 'familie', 'familiaer'],
   cheap: ['cheap', 'gunstig', 'günstig', 'budget'],
   'high-protein': ['high-protein', 'proteinreich', 'protein rich'],
   comfort: ['comfort', 'gemutlich', 'cozy'],
-  light: ['light', 'flach', 'lecker'],
+  light: ['light', 'leicht', 'fresh'],
   breakfast: ['breakfast', 'fruhstuck', 'frühstück'],
   lunch: ['lunch', 'mittag'],
-  dinner: ['dinner', 'abend']
+  dinner: ['dinner', 'abend'],
+  gutburgerlich: ['gutburgerlich', 'gutbürgerlich', 'common', 'traditional'],
+  variabel: ['variabel', 'variable', 'varied'],
+  exotisch: ['exotisch', 'exotic'],
+  mittel: ['mittel', 'medium'],
+  lang: ['lang', 'long'],
+  hoch: ['hoch', 'high'],
+  tief: ['tief', 'deep'],
+  null: ['null']
 };
 
 const sheetUrlInput = document.getElementById('sheetUrl');
@@ -71,7 +61,6 @@ function textKey(value) {
 
 function normalizeLabelValue(value) {
   const key = textKey(value);
-
   if (!key) return '';
 
   for (const [canonical, aliases] of Object.entries(LABEL_ALIASES)) {
@@ -112,7 +101,8 @@ function normalizeLabels(rawLabels) {
   return String(rawLabels)
     .split(/[;,|/]/)
     .map((label) => normalizeLabelValue(label))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((label, index, arr) => arr.indexOf(label) === index);
 }
 
 function parseCSV(text) {
@@ -160,11 +150,6 @@ function parseCSV(text) {
   return rows;
 }
 
-function parseMinutes(value) {
-  const cleaned = String(value || '').replace(/[^0-9]/g, '');
-  return Number(cleaned || 0);
-}
-
 function firstValue(record, candidates) {
   for (const candidate of candidates) {
     const match = record[candidate];
@@ -176,11 +161,27 @@ function firstValue(record, candidates) {
   return '';
 }
 
+function parseTimeLabel(value) {
+  const key = textKey(value);
+
+  if (!key) return 30;
+  if (['null', 'nichts', 'none'].includes(key)) return 10;
+  if (['kurz', 'short', 'quick'].includes(key)) return 15;
+  if (['mittel', 'medium', 'normal'].includes(key)) return 30;
+  if (['lang', 'long', 'slow'].includes(key)) return 45;
+  if (['sehr lang', 'very long'].includes(key)) return 60;
+
+  const digits = Number(String(value).replace(/[^0-9]/g, ''));
+  return Number.isFinite(digits) && digits > 0 ? digits : 30;
+}
+
 function mapDifficulty(value) {
   const key = textKey(value);
 
-  if (['easy', 'leicht', 'simple'].includes(key)) return 'easy';
-  if (['difficult', 'hard', 'schwierig', 'challenging'].includes(key)) return 'difficult';
+  if (['easy', 'leicht', 'simple', 'null'].includes(key)) return 'easy';
+  if (['difficult', 'hard', 'schwierig', 'challenging', 'tief', 'hoch'].includes(key)) return 'difficult';
+  if (['mittel', 'medium'].includes(key)) return 'easy';
+
   return 'easy';
 }
 
@@ -202,13 +203,13 @@ function parseRecipesFromCSV(csvText) {
       });
 
       const title = firstValue(record, ['menu', 'menue', 'menü', 'title', 'name', 'recipe']);
+      const effort = firstValue(record, ['effort', 'schwierigkeit', 'difficulty']);
+      const timeValue = firstValue(record, ['zeit', 'time', 'minutes', 'prep_time']);
       const temperature = firstValue(record, ['temperatur', 'temperature', 'temp']);
       const vibe = firstValue(record, ['vibe', 'style', 'mood', 'category']);
-      const effort = firstValue(record, ['effort', 'difficulty', 'schwierigkeit']);
-      const timeValue = firstValue(record, ['zeit', 'time', 'minutes', 'prep_time']);
 
-      const labels = normalizeLabels([temperature, vibe, effort]);
-      const time = parseMinutes(timeValue);
+      const labels = normalizeLabels([effort, timeValue, temperature, vibe]);
+      const time = parseTimeLabel(timeValue);
 
       return {
         title: String(title || '').trim(),
@@ -220,6 +221,29 @@ function parseRecipesFromCSV(csvText) {
       };
     })
     .filter((recipe) => recipe.title && recipe.title !== 'Untitled recipe');
+}
+
+function buildLabelOptions() {
+  const labels = [...new Set(recipeData.flatMap((recipe) => recipe.labels))].sort();
+  const container = document.getElementById('mustHaveLabels');
+  const avoidContainer = document.getElementById('avoidLabels');
+
+  container.innerHTML = '';
+  avoidContainer.innerHTML = '';
+
+  labels.forEach((label) => {
+    const option = document.createElement('label');
+    option.className = 'label-pill';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = label;
+
+    option.appendChild(input);
+    option.appendChild(document.createTextNode(label));
+    container.appendChild(option.cloneNode(true));
+    avoidContainer.appendChild(option);
+  });
 }
 
 function filterRecipes() {
@@ -324,6 +348,7 @@ async function loadRecipes() {
     }
 
     recipeData = parsedRecipes;
+    buildLabelOptions();
     setStatus(`Loaded ${recipeData.length} recipes successfully.`);
     recipeSummary.textContent = `${recipeData.length} recipes are ready to use.`;
     renderWeeklyPlan([]);
@@ -336,12 +361,6 @@ async function loadRecipes() {
   }
 }
 
-function setupLabels() {
-  createLabelCheckboxes(mustHaveLabels, DEFAULT_LABELS);
-  createLabelCheckboxes(avoidLabels, DEFAULT_LABELS);
-}
-
 loadSheetBtn.addEventListener('click', loadRecipes);
 generatePlanBtn.addEventListener('click', generateWeeklyPlan);
-setupLabels();
 loadRecipes();
