@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weekly Menu Planner</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="hero">
+        <p class="eyebrow">Recipe planner</p>
+        <h1>Weekly menu generator</h1>
+        <p class="intro">
+          Load a public Google Sheet or use the included sample data, then build a
+          weekly menu based on the labels you care about.
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel controls">
+          <h2>1. Load your recipes</h2>
+
+          <label for="sheetUrl">Google Sheet CSV URL</label>
+          <input
+            id="sheetUrl"
+            type="text"
+            placeholder="https://docs.google.com/.../export?format=csv&gid=0"
+            value="./sample-recipes.csv"
+          />
+
+          <button id="loadSheetBtn" class="primary-btn">Load recipes</button>
+
+          <div class="status-box" id="statusBox">Ready to load recipes.</div>
+
+          <h2>2. Set your preferences</h2>
+
+          <div class="field-group">
+            <label for="mealType">Meal type</label>
+            <select id="mealType">
+              <option value="Any">Any</option>
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="maxMinutes">Max prep time (minutes)</label>
+            <input id="maxMinutes" type="number" min="5" max="180" value="45" />
+          </div>
+
+          <div class="field-group">
+            <label for="slots">Meals planned</label>
+            <select id="slots">
+              <option value="3">3 meals</option>
+              <option value="5">5 meals</option>
+              <option value="7" selected>7 meals</option>
+              <option value="10">10 meals</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <h3>Must include labels</h3>
+            <div id="mustHaveLabels" class="label-grid"></div>
+          </div>
+
+          <div class="field-group">
+            <h3>Avoid labels</h3>
+            <div id="avoidLabels" class="label-grid"></div>
+          </div>
+
+          <button id="generatePlanBtn" class="secondary-btn">Generate weekly plan</button>
+        </section>
+
+        <section class="panel output-panel">
+          <h2>3. Weekly menu</h2>
+          <div id="recipeSummary">No recipes loaded yet.</div>
+          <div id="weeklyPlan" class="weekly-plan"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
