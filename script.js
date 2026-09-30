@@ -26,6 +26,24 @@ const DAY_NAMES = [
   'Sunday'
 ];
 
+const LABEL_ALIASES = {
+  warm: ['warm', 'heiss', 'hot'],
+  cold: ['cold', 'kalt'],
+  fast: ['fast', 'quick', 'schnell'],
+  slow: ['slow', 'langsam'],
+  easy: ['easy', 'leicht', 'simple'],
+  difficult: ['difficult', 'hard', 'schwierig', 'challenging'],
+  vegetarian: ['vegetarian', 'vegetarisch'],
+  family: ['family', 'familie', 'familiaer'],
+  cheap: ['cheap', 'gunstig', 'günstig', 'budget'],
+  'high-protein': ['high-protein', 'proteinreich', 'protein rich'],
+  comfort: ['comfort', 'gemutlich', 'cozy'],
+  light: ['light', 'flach', 'lecker'],
+  breakfast: ['breakfast', 'fruhstuck', 'frühstück'],
+  lunch: ['lunch', 'mittag'],
+  dinner: ['dinner', 'abend']
+};
+
 const sheetUrlInput = document.getElementById('sheetUrl');
 const statusBox = document.getElementById('statusBox');
 const recipeSummary = document.getElementById('recipeSummary');
@@ -40,6 +58,30 @@ const mustHaveLabels = document.getElementById('mustHaveLabels');
 const avoidLabels = document.getElementById('avoidLabels');
 
 let recipeData = [];
+
+function textKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeLabelValue(value) {
+  const key = textKey(value);
+
+  if (!key) return '';
+
+  for (const [canonical, aliases] of Object.entries(LABEL_ALIASES)) {
+    if (aliases.includes(key)) {
+      return canonical;
+    }
+  }
+
+  return key;
+}
 
 function getSelectedLabels(container) {
   return Array.from(container.querySelectorAll('input:checked')).map((input) => input.value);
@@ -68,8 +110,8 @@ function normalizeLabels(rawLabels) {
   if (!rawLabels) return [];
 
   return String(rawLabels)
-    .split(/[;,|]/)
-    .map((label) => label.trim().toLowerCase())
+    .split(/[;,|/]/)
+    .map((label) => normalizeLabelValue(label))
     .filter(Boolean);
 }
 
@@ -123,13 +165,33 @@ function parseMinutes(value) {
   return Number(cleaned || 0);
 }
 
+function firstValue(record, candidates) {
+  for (const candidate of candidates) {
+    const match = record[candidate];
+    if (match !== undefined && match !== null && String(match).trim() !== '') {
+      return match;
+    }
+  }
+
+  return '';
+}
+
+function mapDifficulty(value) {
+  const key = textKey(value);
+
+  if (['easy', 'leicht', 'simple'].includes(key)) return 'easy';
+  if (['difficult', 'hard', 'schwierig', 'challenging'].includes(key)) return 'difficult';
+  return 'easy';
+}
+
 function parseRecipesFromCSV(csvText) {
   const rows = parseCSV(csvText);
   if (rows.length < 2) {
     return [];
   }
 
-  const headers = rows[0].map((cell) => String(cell).trim().toLowerCase().replace(/\s+/g, '_'));
+  const rawHeaders = rows[0].map((cell) => String(cell).trim().toLowerCase());
+  const headers = rawHeaders.map((header) => textKey(header).replace(/\s+/g, ''));
   const dataRows = rows.slice(1);
 
   return dataRows
@@ -139,22 +201,22 @@ function parseRecipesFromCSV(csvText) {
         record[header] = row[index] || '';
       });
 
-      const title =
-        record.title || record.name || record.recipe || 'Untitled recipe';
-      const labels = normalizeLabels(record.labels || record.tags || record.category || '');
-      const mealType =
-        record.type || record.meal_type || record.meal || 'Any';
-      const difficulty = record.difficulty || 'easy';
-      const time = parseMinutes(record.time || record.minutes || record.prep_time || 0);
-      const notes = record.notes || record.description || '';
+      const title = firstValue(record, ['menu', 'menue', 'menü', 'title', 'name', 'recipe']);
+      const temperature = firstValue(record, ['temperatur', 'temperature', 'temp']);
+      const vibe = firstValue(record, ['vibe', 'style', 'mood', 'category']);
+      const effort = firstValue(record, ['effort', 'difficulty', 'schwierigkeit']);
+      const timeValue = firstValue(record, ['zeit', 'time', 'minutes', 'prep_time']);
+
+      const labels = normalizeLabels([temperature, vibe, effort]);
+      const time = parseMinutes(timeValue);
 
       return {
-        title: title.trim(),
+        title: String(title || '').trim(),
         labels,
-        type: mealType.trim(),
-        difficulty: difficulty.trim(),
+        type: 'Any',
+        difficulty: mapDifficulty(effort),
         time,
-        notes: notes.trim()
+        notes: ''
       };
     })
     .filter((recipe) => recipe.title && recipe.title !== 'Untitled recipe');
