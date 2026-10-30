@@ -344,17 +344,48 @@ async function loadRecipes() {
 
   try {
     setStatus('Loading recipe data...');
-    const response = await fetch(url, { cache: 'no-store' });
 
+    const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Unable to load the spreadsheet (${response.status}).`);
     }
 
-    const csvText = await response.text();
-    const parsedRecipes = parseRecipesFromCSV(csvText);
+    const rawText = await response.text();
+    const trimmed = rawText.trim();
+
+    let parsedRecipes = [];
+
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const rows = JSON.parse(trimmed);
+
+      parsedRecipes = (Array.isArray(rows) ? rows : [])
+        .map((row) => {
+          const title = row.title || row.menu || row.menue || row.menü || '';
+          const effort = row.effort || row.schwierigkeit || row.difficulty || '';
+          const timeValue = row.time || row.zeit || row.minutes || '';
+          const temperature = row.temperature || row.temperatur || row.temp || '';
+          const vibe = row.vibe || row.style || row.mood || row.category || '';
+          const notes = row.notes || '';
+
+          const labels = normalizeLabels([effort, timeValue, temperature, vibe]);
+          const time = parseTimeLabel(timeValue);
+
+          return {
+            title: String(title || '').trim(),
+            labels,
+            type: 'Any',
+            difficulty: mapDifficulty(effort),
+            time,
+            notes: String(notes || '').trim()
+          };
+        })
+        .filter((recipe) => recipe.title && recipe.title !== 'Untitled recipe');
+    } else {
+      parsedRecipes = parseRecipesFromCSV(rawText);
+    }
 
     if (!parsedRecipes.length) {
-      throw new Error('The file was loaded, but no recipe rows were found. Check your sheet columns or CSV format.');
+      throw new Error('The file was loaded, but no recipe rows were found. Check your sheet columns or data format.');
     }
 
     recipeData = parsedRecipes;
