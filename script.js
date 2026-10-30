@@ -105,7 +105,17 @@ function normalizeLabels(rawLabels) {
     .filter((label, index, arr) => arr.indexOf(label) === index);
 }
 
+function detectDelimiter(text) {
+  const sample = (text || '').slice(0, 2000);
+  const commaCount = (sample.match(/,/g) || []).length;
+  const semicolonCount = (sample.match(/;/g) || []).length;
+
+  if (semicolonCount > commaCount) return ';';
+  return ',';
+}
+
 function parseCSV(text) {
+  const delimiter = detectDelimiter(text);
   const rows = [];
   let current = '';
   let row = [];
@@ -122,7 +132,7 @@ function parseCSV(text) {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       row.push(current);
       current = '';
     } else if ((char === '\n' || char === '\r') && !inQuotes) {
@@ -344,7 +354,7 @@ async function loadRecipes() {
     const parsedRecipes = parseRecipesFromCSV(csvText);
 
     if (!parsedRecipes.length) {
-      throw new Error('The file was loaded, but no recipe rows were found. Check your sheet columns.');
+      throw new Error('The file was loaded, but no recipe rows were found. Check your sheet columns or CSV format.');
     }
 
     recipeData = parsedRecipes;
